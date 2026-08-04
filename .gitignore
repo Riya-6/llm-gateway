@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+.env.*
+node_modules/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.coverage
+docs/*
+!docs/decisions.md
+!docs/metrics.md
