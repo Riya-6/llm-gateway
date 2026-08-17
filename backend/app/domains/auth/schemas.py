@@ -15,3 +15,9 @@ class UserRead(BaseModel):
       is_active: bool
       created_at: datetime
       model_config = ConfigDict(from_attributes=True) #sets the model to read data from Object Relational models (SQLAlchemy) instead of dictionaries.
+
+# Defines a data contract for successful login.
+class Token(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
