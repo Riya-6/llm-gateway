@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.domains.auth.dependencies import get_current_user
 from app.domains.auth.models import User
 from app.domains.auth.schemas import Token, UserCreate, UserRead
 from app.domains.auth.security import create_access_token, create_refresh_token, hash_password, verify_password
@@ -34,3 +35,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     access_token = create_access_token(subject=str(user.id))
     refresh_token = create_refresh_token(subject=str(user.id))
     return Token(access_token=access_token, refresh_token=refresh_token)
+
+@router.get("/me", response_model=UserRead)
+def me(current_user: User = Depends(get_current_user)) -> User:
+    return current_user
