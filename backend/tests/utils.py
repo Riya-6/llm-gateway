@@ -10,7 +10,7 @@ need to write, not an unrelated table-doesn't-exist error somewhere else.
 from collections.abc import Iterator
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -31,6 +31,17 @@ def build_test_client() -> tuple[TestClient, sessionmaker[Session]]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+
+    # SQLite ignores FOREIGN KEY / ON DELETE CASCADE, SET NULL, etc. unless
+    # enforcement is turned on per-connection — Postgres enforces these
+    # natively, but the test harness needs this to exercise the same
+    # cascade/set-null behavior the real database will apply.
+    @event.listens_for(engine, "connect")
+    def _enable_sqlite_foreign_keys(dbapi_connection, connection_record) -> None:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     testing_session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     Base.metadata.create_all(bind=engine)
 

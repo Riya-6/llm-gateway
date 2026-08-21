@@ -27,6 +27,7 @@ for _module_name in (
     "app.domains.auth.models",
     "app.domains.projects.models",
     "app.domains.api_keys.models",
+    "app.domains.prompts.models",
 ):
     try:
         import_module(_module_name)
