@@ -18,3 +18,14 @@ class Prompt(Base):
     created_by: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)    # FK -> users.id, not null
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class PromptVersion(Base):
+    __tablename__ = "prompt_versions"
+    __table_args__ = (UniqueConstraint("prompt_id", "version_number", name="uq_prompt_versions_prompt_id_version_number"),)
+
+    id: Mapped[UUID]=mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4) 
+    prompt_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("prompts.id", ondelete="CASCADE"), nullable=False, index=True)
+    version_number: Mapped[int] = mapped_column(nullable=False)
+    content: Mapped[str] = mapped_column(nullable=False)
+    created_by: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
