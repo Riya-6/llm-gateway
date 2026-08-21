@@ -7,8 +7,10 @@ from app.api.deps import get_db
 from app.domains.auth.dependencies import get_current_user
 from app.domains.auth.models import User
 from app.domains.projects.models import Project
-from app.domains.prompts.models import Prompt, PromptTag, PromptVersion, Tag
+from app.domains.prompts.models import Folder, Prompt, PromptTag, PromptVersion, Tag
 from app.domains.prompts.schemas import (
+    FolderCreate,
+    FolderRead,
     PromptCreate,
     PromptRead,
     PromptUpdate,
@@ -92,7 +94,17 @@ def update_prompt(
     _get_owned_project(project_id, current_user, db)
     prompt = _get_project_prompt(project_id, prompt_id, db)
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    if "folder_id" in updates and updates["folder_id"] is not None:
+        folder = (
+            db.query(Folder)
+            .filter(Folder.id == updates["folder_id"], Folder.project_id == project_id)
+            .first()
+        )
+        if folder is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+
+    for field, value in updates.items():
         setattr(prompt, field, value)
 
     db.add(prompt)
@@ -314,3 +326,52 @@ def list_prompt_tags(
         .filter(PromptTag.prompt_id == prompt_id)
         .all()
     )
+
+
+def _get_project_folder(project_id: UUID, folder_id: UUID, db: Session) -> Folder:
+    folder = db.query(Folder).filter(Folder.id == folder_id, Folder.project_id == project_id).first()
+    if folder is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+    return folder
+
+
+@router.post("/projects/{project_id}/folders", response_model=FolderRead, status_code=status.HTTP_201_CREATED)
+def create_folder(
+    project_id: UUID,
+    payload: FolderCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Folder:
+    _get_owned_project(project_id, current_user, db)
+
+    existing = db.query(Folder).filter(Folder.project_id == project_id, Folder.name == payload.name).first()
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Folder name already exists in this project")
+
+    folder = Folder(project_id=project_id, name=payload.name)
+    db.add(folder)
+    db.commit()
+    db.refresh(folder)
+    return folder
+
+
+@router.get("/projects/{project_id}/folders", response_model=list[FolderRead])
+def list_folders(
+    project_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[Folder]:
+    _get_owned_project(project_id, current_user, db)
+    return db.query(Folder).filter(Folder.project_id == project_id).all()
+
+
+@router.get("/projects/{project_id}/folders/{folder_id}/prompts", response_model=list[PromptRead])
+def list_folder_prompts(
+    project_id: UUID,
+    folder_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[Prompt]:
+    _get_owned_project(project_id, current_user, db)
+    _get_project_folder(project_id, folder_id, db)
+    return db.query(Prompt).filter(Prompt.project_id == project_id, Prompt.folder_id == folder_id).all()

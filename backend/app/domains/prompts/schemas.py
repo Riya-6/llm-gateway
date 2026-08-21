@@ -17,10 +17,12 @@ class PromptRead(BaseModel):
     created_by: UUID
     created_at: datetime
     updated_at: datetime
-    
+    folder_id: UUID | None
+
 class PromptUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
+    folder_id: UUID | None = None
 
 
 class PromptVersionCreate(BaseModel):
@@ -43,6 +45,19 @@ class TagCreate(BaseModel):
 
 
 class TagRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    project_id: UUID
+    name: str
+    created_at: datetime
+
+
+class FolderCreate(BaseModel):
+    name: str
+
+
+class FolderRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
