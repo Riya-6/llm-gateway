@@ -7,8 +7,14 @@ from app.api.deps import get_db
 from app.domains.auth.dependencies import get_current_user
 from app.domains.auth.models import User
 from app.domains.projects.models import Project
-from app.domains.prompts.models import Prompt
-from app.domains.prompts.schemas import PromptCreate, PromptRead, PromptUpdate
+from app.domains.prompts.models import Prompt, PromptVersion
+from app.domains.prompts.schemas import (
+    PromptCreate,
+    PromptRead,
+    PromptUpdate,
+    PromptVersionCreate,
+    PromptVersionRead,
+)
 
 router = APIRouter()
 
@@ -104,3 +110,107 @@ def delete_prompt(
     prompt = _get_project_prompt(project_id, prompt_id, db)
     db.delete(prompt)
     db.commit()
+
+
+@router.post(
+    "/projects/{project_id}/prompts/{prompt_id}/versions",
+    response_model=PromptVersionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_prompt_version(
+    project_id: UUID,
+    prompt_id: UUID,
+    payload: PromptVersionCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PromptVersion:
+    _get_owned_project(project_id, current_user, db)
+    _get_project_prompt(project_id, prompt_id, db)
+
+    last_version_number = (
+        db.query(PromptVersion.version_number)
+        .filter(PromptVersion.prompt_id == prompt_id)
+        .order_by(PromptVersion.version_number.desc())
+        .limit(1)
+        .scalar()
+    )
+    next_version_number = (last_version_number or 0) + 1
+
+    version = PromptVersion(
+        prompt_id=prompt_id,
+        version_number=next_version_number,
+        content=payload.content,
+        created_by=current_user.id,
+    )
+    db.add(version)
+    db.commit()
+    db.refresh(version)
+    return version
+
+
+@router.get(
+    "/projects/{project_id}/prompts/{prompt_id}/versions",
+    response_model=list[PromptVersionRead],
+)
+def list_prompt_versions(
+    project_id: UUID,
+    prompt_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[PromptVersion]:
+    _get_owned_project(project_id, current_user, db)
+    _get_project_prompt(project_id, prompt_id, db)
+    return (
+        db.query(PromptVersion)
+        .filter(PromptVersion.prompt_id == prompt_id)
+        .order_by(PromptVersion.version_number.asc())
+        .all()
+    )
+
+
+@router.get(
+    "/projects/{project_id}/prompts/{prompt_id}/versions/latest",
+    response_model=PromptVersionRead,
+)
+def get_latest_prompt_version(
+    project_id: UUID,
+    prompt_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PromptVersion:
+    _get_owned_project(project_id, current_user, db)
+    _get_project_prompt(project_id, prompt_id, db)
+
+    version = (
+        db.query(PromptVersion)
+        .filter(PromptVersion.prompt_id == prompt_id)
+        .order_by(PromptVersion.version_number.desc())
+        .first()
+    )
+    if version is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No versions for this prompt")
+    return version
+
+
+@router.get(
+    "/projects/{project_id}/prompts/{prompt_id}/versions/{version_number}",
+    response_model=PromptVersionRead,
+)
+def get_prompt_version(
+    project_id: UUID,
+    prompt_id: UUID,
+    version_number: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PromptVersion:
+    _get_owned_project(project_id, current_user, db)
+    _get_project_prompt(project_id, prompt_id, db)
+
+    version = (
+        db.query(PromptVersion)
+        .filter(PromptVersion.prompt_id == prompt_id, PromptVersion.version_number == version_number)
+        .first()
+    )
+    if version is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found")
+    return version

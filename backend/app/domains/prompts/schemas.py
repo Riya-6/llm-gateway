@@ -21,3 +21,18 @@ class PromptRead(BaseModel):
 class PromptUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
+
+
+class PromptVersionCreate(BaseModel):
+    content: str
+
+
+class PromptVersionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    prompt_id: UUID
+    version_number: int
+    content: str
+    created_by: UUID
+    created_at: datetime
