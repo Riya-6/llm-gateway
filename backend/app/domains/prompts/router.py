@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -65,11 +66,30 @@ def create_prompt(
 @router.get("/projects/{project_id}/prompts", response_model=list[PromptRead])
 def list_prompts(
     project_id: UUID,
+    search: str | None = None,
+    tag: str | None = None,
+    folder_id: UUID | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[Prompt]:
     _get_owned_project(project_id, current_user, db)
-    return db.query(Prompt).filter(Prompt.project_id == project_id).all()
+
+    query = db.query(Prompt).filter(Prompt.project_id == project_id)
+
+    if search is not None:
+        query = query.filter(
+            or_(Prompt.name.ilike(f"%{search}%"), Prompt.description.ilike(f"%{search}%"))
+        )
+
+    if tag is not None:
+        query = query.join(PromptTag, PromptTag.prompt_id == Prompt.id).join(
+            Tag, Tag.id == PromptTag.tag_id
+        ).filter(Tag.name == tag)
+
+    if folder_id is not None:
+        query = query.filter(Prompt.folder_id == folder_id)
+
+    return query.all()
 
 
 @router.get("/projects/{project_id}/prompts/{prompt_id}", response_model=PromptRead)
