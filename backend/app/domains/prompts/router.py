@@ -7,13 +7,15 @@ from app.api.deps import get_db
 from app.domains.auth.dependencies import get_current_user
 from app.domains.auth.models import User
 from app.domains.projects.models import Project
-from app.domains.prompts.models import Prompt, PromptVersion
+from app.domains.prompts.models import Prompt, PromptTag, PromptVersion, Tag
 from app.domains.prompts.schemas import (
     PromptCreate,
     PromptRead,
     PromptUpdate,
     PromptVersionCreate,
     PromptVersionRead,
+    TagCreate,
+    TagRead,
 )
 
 router = APIRouter()
@@ -214,3 +216,101 @@ def get_prompt_version(
     if version is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found")
     return version
+
+
+@router.post("/projects/{project_id}/tags", response_model=TagRead, status_code=status.HTTP_201_CREATED)
+def create_tag(
+    project_id: UUID,
+    payload: TagCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Tag:
+    _get_owned_project(project_id, current_user, db)
+
+    existing = db.query(Tag).filter(Tag.project_id == project_id, Tag.name == payload.name).first()
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tag name already exists in this project")
+
+    tag = Tag(project_id=project_id, name=payload.name)
+    db.add(tag)
+    db.commit()
+    db.refresh(tag)
+    return tag
+
+
+@router.get("/projects/{project_id}/tags", response_model=list[TagRead])
+def list_tags(
+    project_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[Tag]:
+    _get_owned_project(project_id, current_user, db)
+    return db.query(Tag).filter(Tag.project_id == project_id).all()
+
+
+@router.post(
+    "/projects/{project_id}/prompts/{prompt_id}/tags/{tag_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def attach_tag_to_prompt(
+    project_id: UUID,
+    prompt_id: UUID,
+    tag_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    _get_owned_project(project_id, current_user, db)
+    _get_project_prompt(project_id, prompt_id, db)
+
+    existing = (
+        db.query(PromptTag)
+        .filter(PromptTag.prompt_id == prompt_id, PromptTag.tag_id == tag_id)
+        .first()
+    )
+    if existing is None:
+        db.add(PromptTag(prompt_id=prompt_id, tag_id=tag_id))
+        db.commit()
+
+
+@router.delete(
+    "/projects/{project_id}/prompts/{prompt_id}/tags/{tag_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def detach_tag_from_prompt(
+    project_id: UUID,
+    prompt_id: UUID,
+    tag_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    _get_owned_project(project_id, current_user, db)
+    _get_project_prompt(project_id, prompt_id, db)
+
+    existing = (
+        db.query(PromptTag)
+        .filter(PromptTag.prompt_id == prompt_id, PromptTag.tag_id == tag_id)
+        .first()
+    )
+    if existing is not None:
+        db.delete(existing)
+        db.commit()
+
+
+@router.get(
+    "/projects/{project_id}/prompts/{prompt_id}/tags",
+    response_model=list[TagRead],
+)
+def list_prompt_tags(
+    project_id: UUID,
+    prompt_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[Tag]:
+    _get_owned_project(project_id, current_user, db)
+    _get_project_prompt(project_id, prompt_id, db)
+    return (
+        db.query(Tag)
+        .join(PromptTag, PromptTag.tag_id == Tag.id)
+        .filter(PromptTag.prompt_id == prompt_id)
+        .all()
+    )

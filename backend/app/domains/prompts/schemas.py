@@ -36,3 +36,16 @@ class PromptVersionRead(BaseModel):
     content: str
     created_by: UUID
     created_at: datetime
+
+
+class TagCreate(BaseModel):
+    name: str
+
+
+class TagRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    project_id: UUID
+    name: str
+    created_at: datetime
