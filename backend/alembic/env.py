@@ -28,6 +28,7 @@ for _module_name in (
     "app.domains.projects.models",
     "app.domains.api_keys.models",
     "app.domains.prompts.models",
+    "app.domains.generation.models",
 ):
     try:
         import_module(_module_name)
