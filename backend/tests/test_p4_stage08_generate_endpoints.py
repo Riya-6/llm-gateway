@@ -2,7 +2,7 @@ from app.domains.auth import models as auth_models  # noqa: F401
 from app.domains.generation import models as generation_models
 from app.domains.generation.provider_router import AllProvidersUnavailableError
 from app.domains.generation.providers.base import GenerationError, ProviderResponse
-from app.domains.generation.router import get_generation_provider
+from app.domains.generation.router import get_generation_cache, get_generation_provider
 from app.domains.projects import models as project_models  # noqa: F401
 from app.main import app
 from tests.utils import build_test_client
@@ -44,6 +44,7 @@ def test_generate_happy_path() -> None:
     project_id = _create_project(client, token)
 
     app.dependency_overrides[get_generation_provider] = lambda: _FakeProvider()
+    app.dependency_overrides[get_generation_cache] = lambda: None
     try:
         response = client.post(
             f"/api/v1/projects/{project_id}/generate",
@@ -56,6 +57,7 @@ def test_generate_happy_path() -> None:
         assert body["content"] == "hello there"
     finally:
         del app.dependency_overrides[get_generation_provider]
+        del app.dependency_overrides[get_generation_cache]
 
 
 def test_generate_returns_502_on_generation_error() -> None:
@@ -64,6 +66,7 @@ def test_generate_returns_502_on_generation_error() -> None:
     project_id = _create_project(client, token)
 
     app.dependency_overrides[get_generation_provider] = lambda: _FakeProvider(always_fail=True)
+    app.dependency_overrides[get_generation_cache] = lambda: None
     try:
         response = client.post(
             f"/api/v1/projects/{project_id}/generate",
@@ -73,6 +76,7 @@ def test_generate_returns_502_on_generation_error() -> None:
         assert response.status_code == 502
     finally:
         del app.dependency_overrides[get_generation_provider]
+        del app.dependency_overrides[get_generation_cache]
 
 
 def test_generate_returns_503_when_all_providers_unavailable() -> None:
@@ -81,6 +85,7 @@ def test_generate_returns_503_when_all_providers_unavailable() -> None:
     project_id = _create_project(client, token)
 
     app.dependency_overrides[get_generation_provider] = lambda: _FakeProvider(unavailable=True)
+    app.dependency_overrides[get_generation_cache] = lambda: None
     try:
         response = client.post(
             f"/api/v1/projects/{project_id}/generate",
@@ -90,6 +95,7 @@ def test_generate_returns_503_when_all_providers_unavailable() -> None:
         assert response.status_code == 503
     finally:
         del app.dependency_overrides[get_generation_provider]
+        del app.dependency_overrides[get_generation_cache]
 
 
 def test_stream_endpoint_reconstructs_full_content_and_persists() -> None:
@@ -98,6 +104,7 @@ def test_stream_endpoint_reconstructs_full_content_and_persists() -> None:
     project_id = _create_project(client, token)
 
     app.dependency_overrides[get_generation_provider] = lambda: _FakeProvider(content="a longer streamed response")
+    app.dependency_overrides[get_generation_cache] = lambda: None
     try:
         response = client.post(
             f"/api/v1/projects/{project_id}/generate/stream",
@@ -127,3 +134,4 @@ def test_stream_endpoint_reconstructs_full_content_and_persists() -> None:
             db.close()
     finally:
         del app.dependency_overrides[get_generation_provider]
+        del app.dependency_overrides[get_generation_cache]

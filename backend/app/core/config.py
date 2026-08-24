@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     postgres_password: str = "llm_gateway"
     postgres_host: str = "localhost"
     postgres_port: int = 5432
-    redis_host: str = "localhost"
+    redis_host: str = "127.0.0.1"
     redis_port: int = 6379
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     generation_real_fallback_provider: str | None = None
     circuit_breaker_failure_threshold: int = 3
     circuit_breaker_recovery_timeout_seconds: float = 30.0
+    cache_enabled: bool = True
+    cache_ttl_seconds: int = 300
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
 

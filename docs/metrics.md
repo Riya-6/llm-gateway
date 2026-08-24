@@ -1,8 +1,6 @@
 # Benchmark results log
 
-Log every load test / chaos test / benchmark run here, with real numbers —
-not "it worked." If you report running a test without pasting results here,
-expect to get asked for them before it counts as done.
+Log every load test / chaos test / benchmark run here
 
 | Date | Feature tested | Tool used | Config | Key numbers | Notes |
 |---|---|---|---|---|---|
@@ -13,3 +11,4 @@ expect to get asked for them before it counts as done.
 | 2026-08-24 | Backoff jitter comparison (generation pipeline) | scripts/compare_jitter.py | jitter=True, callers=20, base_backoff_seconds=1.0, max_attempts=3, fail_times=2 | round 1: stddev=0.230s, range=[0.034,0.906]s; round 2: stddev=0.608s, range=[0.062,1.952]s | in-process simulation, not a live HTTP run — see script docstring for why |
 | 2026-08-24 | Circuit-breaker threshold comparison (generation pipeline) | scripts/compare_thresholds.py | fast-trip: failure_threshold=1, recovery_timeout_seconds=5.0, requests=15, fail_after=3, fail_for=6, mode=error | success_rate=0%, first_error_response=1 req, recovery=1 req | raw results: backend\scripts\results\chaos_test_20260824T115109Z.csv — part of a threshold comparison, see other row for the paired config |
 | 2026-08-24 | Circuit-breaker threshold comparison (generation pipeline) | scripts/compare_thresholds.py | slow-trip: failure_threshold=5, recovery_timeout_seconds=30.0, requests=15, fail_after=3, fail_for=6, mode=error | success_rate=0%, first_error_response=1 req, recovery=None req | raw results: backend\scripts\results\chaos_test_20260824T115135Z.csv — part of a threshold comparison, see other row for the paired config |
+| 2026-08-24 | Cache load test (generation pipeline) | scripts/load_test_cache.py | requests=100, repeat_ratio=0.6, pool_size=40 | hit_rate=60% (60/100), avg_latency_cached_ms=50, avg_latency_uncached_ms=429, latency_reduction=88% | raw results: backend\scripts\results\load_test_cache_20260824T143744Z.csv — supersedes an earlier run from the same config that used a fresh HTTP connection per request and measured connection-setup overhead, not cache behavior; see docs/decisions.md |

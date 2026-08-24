@@ -10,6 +10,7 @@ from app.api.deps import get_db
 from app.core.config import settings
 from app.domains.auth.dependencies import get_current_user
 from app.domains.auth.models import User
+from app.domains.generation.cache import GenerationCache, build_redis_client
 from app.domains.generation.circuit_breaker import CircuitBreaker
 from app.domains.generation.models import GenerationResponse
 from app.domains.generation.provider_router import AllProvidersUnavailableError, ProviderRoute, ProviderRouter
@@ -28,9 +29,6 @@ logger = logging.getLogger(__name__)
 
 def _build_circuit_breaker() -> CircuitBreaker:
     # Configurable via CIRCUIT_BREAKER_FAILURE_THRESHOLD / _RECOVERY_TIMEOUT_SECONDS
-    # rather than hardcoded, so scripts/compare_thresholds.py (stage 10) can
-    # drive the same chaos scenario against two different configs without
-    # editing code between runs.
     return CircuitBreaker(
         failure_threshold=settings.circuit_breaker_failure_threshold,
         recovery_timeout_seconds=settings.circuit_breaker_recovery_timeout_seconds,
@@ -56,10 +54,7 @@ def _build_default_routes() -> list[ProviderRoute]:
     # actual chaos-test signal (see docs/decisions.md).
     if settings.generation_mock_only:
         if settings.generation_real_fallback_provider:
-            # Mock stays the (admin-toggleable) primary; the fallback route
-            # is exactly one real provider, chosen by name, so a fallback
-            # test can use real hosted latency/behavior on the fallback leg
-            # without pulling in every provider (and their API costs) at once.
+
             return [
                 ProviderRoute(
                     provider=MockHTTPProvider(base_url=settings.mock_provider_url, name="mock-primary"),
@@ -68,10 +63,7 @@ def _build_default_routes() -> list[ProviderRoute]:
                 ProviderRoute(provider=_build_real_provider(settings.generation_real_fallback_provider), breaker=_build_circuit_breaker()),
             ]
         if settings.mock_fallback_provider_url:
-            # Two-mock-provider chaos-test config: a second mock instance
-            # (kept in "normal" mode) stands in as a real fallback target,
-            # so a chaos run can prove actual handoff — not just that the
-            # circuit breaker opened — without spending on real providers.
+
             return [
                 ProviderRoute(
                     provider=MockHTTPProvider(base_url=settings.mock_provider_url, name="mock-primary"),
@@ -105,6 +97,19 @@ def get_generation_provider() -> Provider:
     return _default_router
 
 
+def _build_cache() -> GenerationCache | None:
+    if not settings.cache_enabled:
+        return None
+    return GenerationCache(build_redis_client())
+
+
+_default_cache = _build_cache()
+
+
+def get_generation_cache() -> GenerationCache | None:
+    return _default_cache
+
+
 def _get_owned_project(project_id: UUID, current_user: User, db: Session) -> Project:
     project = db.query(Project).filter(Project.id == project_id, Project.owner_id == current_user.id).first()
     if project is None:
@@ -124,6 +129,7 @@ def generate(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     provider: Provider = Depends(get_generation_provider),
+    cache: GenerationCache | None = Depends(get_generation_cache),
 ) -> GenerationResponse:
     _get_owned_project(project_id, current_user, db)
     try:
@@ -134,6 +140,7 @@ def generate(
             prompt=payload.prompt,
             model=payload.model,
             provider=provider,
+            cache=cache,
         )
     except AllProvidersUnavailableError:
         raise HTTPException(
@@ -151,6 +158,7 @@ def generate_stream(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     provider: Provider = Depends(get_generation_provider),
+    cache: GenerationCache | None = Depends(get_generation_cache),
 ) -> StreamingResponse:
     _get_owned_project(project_id, current_user, db)
     try:
@@ -161,6 +169,7 @@ def generate_stream(
             prompt=payload.prompt,
             model=payload.model,
             provider=provider,
+            cache=cache,
         )
     except AllProvidersUnavailableError:
         raise HTTPException(

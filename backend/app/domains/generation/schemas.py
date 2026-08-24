@@ -20,3 +20,7 @@ class GenerateResponse(BaseModel):
     tokens_used: int
     latency_ms: int
     created_at: datetime
+    # Defaults False until the cache (Phase 5) is actually wired into the
+    # generate() flow — safe with from_attributes even though the ORM
+    # GenerationResponse has no matching column.
+    cache_hit: bool = False
