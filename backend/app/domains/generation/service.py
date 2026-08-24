@@ -25,14 +25,40 @@ def execute_generation(
     sleep_fn: Callable[[float], None] = time.sleep,
     random_fn: Callable[[], float] = random.random,
 ) -> GenerationResponse:
-    """Persist a GenerationRequest, call the provider (with retry), persist the result.
+    request = GenerationRequest(
+        project_id=project_id,
+        model=model,
+        status="pending",
+        created_by=created_by,
+    )
+    db.add(request)
+    db.commit()
+    db.refresh(request)
 
-    TODO (you): implement this. See docs/stages/phase4-generation.md, Stage 5:
-      1. Create a GenerationRequest with status="pending", commit it (so it
-         has an id even if the call below fails).
-      2. Call call_with_retry(...) with the given provider/retry params.
-      3. On GenerationError: set status="failed", commit, re-raise.
-      4. On success: create a GenerationResponse from the result, set
-         status="succeeded", commit both, return the persisted GenerationResponse.
-    """
-    raise NotImplementedError
+    try:
+        result = call_with_retry(
+            provider, prompt, model,
+            max_attempts=max_attempts, base_backoff_seconds=base_backoff_seconds,
+            max_backoff_seconds=max_backoff_seconds, jitter=jitter,
+            sleep_fn=sleep_fn, random_fn=random_fn,
+        )
+    except GenerationError:
+        request.status = "failed"
+        db.add(request)
+        db.commit()
+        raise
+
+    response = GenerationResponse(
+        request_id=request.id,
+        provider=result.provider,
+        model=result.model,
+        content=result.content,
+        tokens_used=result.tokens_used,
+        latency_ms=result.latency_ms,
+    )
+    request.status = "succeeded"
+    db.add(response)
+    db.add(request)
+    db.commit()
+    db.refresh(response)
+    return response

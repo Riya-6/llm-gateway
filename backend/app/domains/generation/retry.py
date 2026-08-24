@@ -17,17 +17,17 @@ def call_with_retry(
     sleep_fn: Callable[[float], None] = time.sleep,
     random_fn: Callable[[], float] = random.random,
 ) -> ProviderResponse:
-    """Call `provider.generate`, retrying on GenerationError with exponential backoff.
-
-    TODO (you): implement this. See docs/stages/phase4-generation.md, Stage 3
-    for the exact contract test_p4_stage03_retry.py checks against:
-      - Success at any attempt returns immediately, no further attempts/sleeping.
-      - A failed attempt n (1-indexed) sleeps before retrying, UNLESS it was
-        the final attempt (max_attempts) — then just re-raise instead.
-      - Uncapped delay for attempt n: base_backoff_seconds * (2 ** (n - 1)),
-        capped at max_backoff_seconds.
-      - jitter=False: sleep exactly the capped delay.
-      - jitter=True ("full jitter"): sleep random_fn() * capped_delay.
-      - Re-raise the final attempt's original GenerationError, not a new one.
-    """
-    raise NotImplementedError
+    
+    last_error: GenerationError | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return provider.generate(prompt, model)
+        except GenerationError as exc:
+            last_error = exc
+            if attempt < max_attempts:
+                delay = min(max_backoff_seconds, base_backoff_seconds * (2 ** (attempt - 1)))
+                if jitter:
+                    delay = random_fn() * delay
+                sleep_fn(delay)
+    assert last_error is not None
+    raise last_error

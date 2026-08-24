@@ -1,7 +1,13 @@
+import pytest
+
 from app.domains.generation.circuit_breaker import CircuitBreaker
 from app.domains.generation.providers.base import ProviderResponse
 from app.domains.generation.providers.scoring import ProviderStats
-from app.domains.generation.provider_router import ProviderRoute, ProviderRouter
+from app.domains.generation.provider_router import (
+    AllProvidersUnavailableError,
+    ProviderRoute,
+    ProviderRouter,
+)
 
 
 class _FakeProvider:
@@ -49,3 +55,19 @@ def test_tripped_breaker_is_excluded_even_if_it_would_score_highest() -> None:
     selected = router.select_provider(stats, _lower_is_better_scoring)
 
     assert selected.provider.name == "worse_but_available"
+
+
+def test_all_providers_unavailable_raises_instead_of_valueerror() -> None:
+    primary = ProviderRoute(provider=_FakeProvider("primary"), breaker=CircuitBreaker(failure_threshold=1))
+    secondary = ProviderRoute(provider=_FakeProvider("secondary"), breaker=CircuitBreaker(failure_threshold=1))
+    primary.breaker.record_failure()
+    secondary.breaker.record_failure()
+
+    router = ProviderRouter([primary, secondary])
+    stats = {
+        "primary": ProviderStats(provider_name="primary", recent_latency_ms=1.0, cost_per_1k_tokens=0.0),
+        "secondary": ProviderStats(provider_name="secondary", recent_latency_ms=1.0, cost_per_1k_tokens=0.0),
+    }
+
+    with pytest.raises(AllProvidersUnavailableError):
+        router.select_provider(stats, _lower_is_better_scoring)

@@ -3,22 +3,6 @@ from typing import Callable
 
 
 class CircuitBreaker:
-    """Per-provider closed/open/half-open circuit breaker.
-
-    TODO (you): implement this. See docs/stages/phase4-generation.md, Stage 4
-    for the exact state machine test_p4_stage04_circuit_breaker.py checks:
-      - Starts "closed"; allow_request() is True.
-      - record_failure() increments a consecutive-failure counter; at
-        failure_threshold, trips to "open" and records now_fn() as the
-        open time.
-      - While "open", allow_request() is False unless
-        recovery_timeout_seconds has elapsed since it opened — then it
-        moves to "half_open" and this call returns True.
-      - While "half_open": record_success() -> back to "closed", counter
-        reset. record_failure() -> back to "open", timer restarts.
-      - record_success() while "closed" just resets the counter.
-    """
-
     def __init__(
         self,
         *,
@@ -34,10 +18,20 @@ class CircuitBreaker:
         self._opened_at: float | None = None
 
     def allow_request(self) -> bool:
-        raise NotImplementedError
+        if self.state == "open":
+            if self._now() - self._opened_at >= self.recovery_timeout_seconds:
+                self.state = "half_open"
+                return True
+            return False
+        return True
 
     def record_success(self) -> None:
-        raise NotImplementedError
+        self._consecutive_failures = 0
+        self.state = "closed"
+        self._opened_at = None
 
     def record_failure(self) -> None:
-        raise NotImplementedError
+        self._consecutive_failures += 1
+        if self.state == "half_open" or self._consecutive_failures >= self.failure_threshold:
+            self.state = "open"
+            self._opened_at = self._now()
