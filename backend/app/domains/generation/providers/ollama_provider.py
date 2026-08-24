@@ -26,7 +26,7 @@ class OllamaProvider:
 
     name = "ollama"
 
-    def __init__(self, base_url: str = "http://localhost:11434", timeout_seconds: float = 60.0) -> None:
+    def __init__(self, base_url: str = "http://127.0.0.1:11434", timeout_seconds: float = 60.0) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
 

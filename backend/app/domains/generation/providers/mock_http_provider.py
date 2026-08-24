@@ -10,9 +10,10 @@ from app.domains.generation.providers.base import (
 
 
 class MockHTTPProvider:
-    name = "mock"
-
-    def __init__(self, base_url: str = "http://localhost:9100", timeout_seconds: float = 5.0) -> None:
+    def __init__(
+        self, base_url: str = "http://127.0.0.1:9100", timeout_seconds: float = 5.0, name: str = "mock"
+    ) -> None:
+        self.name = name
         self._base_url = base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
 

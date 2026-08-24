@@ -15,3 +15,4 @@ build/
 docs/*
 !docs/decisions.md
 !docs/metrics.md
+backend/scripts/results/

@@ -5,6 +5,7 @@ from app.domains.auth.router import router as auth_router
 from app.domains.projects.router import router as projects_router
 from app.domains.api_keys.router import router as api_keys_router
 from app.domains.prompts.router import router as prompts_router
+from app.domains.generation.router import router as generation_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, prefix="/health", tags=["health"])
@@ -12,3 +13,4 @@ api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 api_router.include_router(projects_router, prefix="/projects", tags=["projects"])
 api_router.include_router(api_keys_router, tags=["api-keys"])
 api_router.include_router(prompts_router, tags=["prompts"])
+api_router.include_router(generation_router, tags=["generation"])
